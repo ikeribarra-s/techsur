@@ -26,8 +26,7 @@ export default function Login() {
         const err = await res.json().catch(() => ({}));
         throw new Error(err.detail ?? 'Usuario o contraseña incorrectos');
       }
-      const data = await res.json();
-      localStorage.setItem('token', data.access_token);
+      localStorage.setItem('loggedIn', 'true');
       navigate('/');
     } catch (e: any) {
       toast.error(e.message);

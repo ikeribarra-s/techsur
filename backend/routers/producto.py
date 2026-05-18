@@ -14,6 +14,17 @@ from backend.schemas.producto import ProductoCreate, ProductoUpdate, ProductoRes
 router = APIRouter(prefix="/productos", tags=["Productos"])
 
 
+def _detect_image(header: bytes) -> tuple[str, str] | None:
+    """Return (extension, mime_type) based on magic bytes, or None if not an allowed image."""
+    if header[:3] == b"\xff\xd8\xff":
+        return "jpg", "image/jpeg"
+    if header[:8] == b"\x89PNG\r\n\x1a\n":
+        return "png", "image/png"
+    if header[:4] == b"RIFF" and header[8:12] == b"WEBP":
+        return "webp", "image/webp"
+    return None
+
+
 @router.get("/", response_model=List[ProductoResponse])
 async def list_productos(
     estado: Optional[str] = None,
@@ -96,9 +107,17 @@ async def upload_foto(
     if not settings.SUPABASE_URL or not settings.SUPABASE_KEY:
         raise HTTPException(status_code=503, detail="Almacenamiento no configurado (SUPABASE_URL / SUPABASE_KEY)")
 
-    ext = (file.filename or "foto").rsplit(".", 1)[-1].lower()
+    max_bytes = settings.MAX_UPLOAD_MB * 1024 * 1024
+    content = await file.read(max_bytes + 1)
+    if len(content) > max_bytes:
+        raise HTTPException(status_code=413, detail=f"El archivo supera el límite de {settings.MAX_UPLOAD_MB} MB.")
+
+    detected = _detect_image(content[:12])
+    if detected is None:
+        raise HTTPException(status_code=415, detail="Formato no permitido. Solo se aceptan JPEG, PNG y WebP.")
+    ext, mime_type = detected
+
     filename = f"{id}_{int(time.time() * 1000)}.{ext}"
-    content = await file.read()
 
     async with httpx.AsyncClient() as client:
         r = await client.post(
@@ -106,12 +125,12 @@ async def upload_foto(
             content=content,
             headers={
                 "Authorization": f"Bearer {settings.SUPABASE_KEY}",
-                "Content-Type": file.content_type or "application/octet-stream",
+                "Content-Type": mime_type,
                 "x-upsert": "true",
             },
         )
         if r.status_code not in (200, 201):
-            raise HTTPException(status_code=502, detail=f"Error al subir imagen: {r.text}")
+            raise HTTPException(status_code=502, detail="Error al subir imagen.")
 
     url = f"{settings.SUPABASE_URL}/storage/v1/object/public/product-photos/{filename}"
     foto = ProductoFoto(producto_id=p.id, url=url, orden=len(p.fotos))

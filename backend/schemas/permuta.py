@@ -3,6 +3,7 @@ from decimal import Decimal
 from datetime import datetime
 from typing import Optional
 import uuid
+from backend.models.enums import CondicionPermuta
 
 
 class PermutaBase(BaseModel):
@@ -12,7 +13,7 @@ class PermutaBase(BaseModel):
     modelo: str
     storage: Optional[str] = None
     color: Optional[str] = None
-    condicion: str
+    condicion: CondicionPermuta
     bateria_salud: Optional[int] = None
     valor_permuta: Decimal
     notas: Optional[str] = None

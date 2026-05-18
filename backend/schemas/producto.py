@@ -3,6 +3,7 @@ from decimal import Decimal
 from datetime import datetime
 from typing import Optional
 import uuid
+from backend.models.enums import CondicionProducto, EstadoProducto
 
 
 class ProductoFotoSchema(BaseModel):
@@ -18,11 +19,11 @@ class ProductoBase(BaseModel):
     modelo: str
     storage: Optional[str] = None
     color: Optional[str] = None
-    condicion: str = "usado"
+    condicion: CondicionProducto = CondicionProducto.usado
     bateria_salud: Optional[int] = None
     precio_compra: Decimal
     precio_venta: Decimal
-    estado: str = "disponible"
+    estado: EstadoProducto = EstadoProducto.disponible
     notas: Optional[str] = None
 
 
@@ -36,11 +37,11 @@ class ProductoUpdate(BaseModel):
     modelo: Optional[str] = None
     storage: Optional[str] = None
     color: Optional[str] = None
-    condicion: Optional[str] = None
+    condicion: Optional[CondicionProducto] = None
     bateria_salud: Optional[int] = None
     precio_compra: Optional[Decimal] = None
     precio_venta: Optional[Decimal] = None
-    estado: Optional[str] = None
+    estado: Optional[EstadoProducto] = None
     notas: Optional[str] = None
 
 

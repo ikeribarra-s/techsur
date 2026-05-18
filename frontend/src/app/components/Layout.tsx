@@ -1,6 +1,6 @@
 import { NavLink, Outlet, useNavigate } from "react-router";
-import { useEffect } from "react";
 import { LogOut } from "lucide-react";
+import { api } from "../api";
 
 const navItems = [
   { path: '/', label: 'Inicio' },
@@ -15,14 +15,9 @@ const navItems = [
 export default function Layout() {
   const navigate = useNavigate();
 
-  useEffect(() => {
-    if (!localStorage.getItem('token')) {
-      navigate('/login');
-    }
-  }, [navigate]);
-
-  const handleLogout = () => {
-    localStorage.removeItem('token');
+  const handleLogout = async () => {
+    await api.post('/auth/logout', {}).catch(() => null);
+    localStorage.removeItem('loggedIn');
     navigate('/login');
   };
 

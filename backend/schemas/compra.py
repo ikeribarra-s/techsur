@@ -3,6 +3,7 @@ from decimal import Decimal
 from datetime import date, datetime
 from typing import Optional
 import uuid
+from backend.models.enums import FormaPagoCompra
 
 
 class CompraBase(BaseModel):
@@ -10,7 +11,7 @@ class CompraBase(BaseModel):
     producto_id: uuid.UUID
     precio_unitario: Decimal
     fecha_compra: date
-    forma_pago: str = "efectivo"
+    forma_pago: FormaPagoCompra = FormaPagoCompra.efectivo
     notas: Optional[str] = None
 
 

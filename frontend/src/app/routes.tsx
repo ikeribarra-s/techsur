@@ -1,4 +1,4 @@
-import { createBrowserRouter } from "react-router";
+import { createBrowserRouter, redirect } from "react-router";
 import Layout from "./components/Layout";
 import Login from "./pages/Login";
 import Dashboard from "./pages/Dashboard";
@@ -9,6 +9,13 @@ import Proveedores from "./pages/Proveedores";
 import Compras from "./pages/Compras";
 import Permutas from "./pages/Permutas";
 import Catalogo from "./pages/Catalogo";
+
+function authLoader() {
+  if (!localStorage.getItem('loggedIn')) {
+    return redirect('/login');
+  }
+  return null;
+}
 
 export const router = createBrowserRouter([
   {
@@ -22,6 +29,7 @@ export const router = createBrowserRouter([
   {
     path: "/",
     Component: Layout,
+    loader: authLoader,
     children: [
       { index: true, Component: Dashboard },
       { path: "inventario", Component: Inventario },

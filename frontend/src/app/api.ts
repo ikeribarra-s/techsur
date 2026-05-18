@@ -1,9 +1,5 @@
 const BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:8000'
 
-function getToken() {
-  return localStorage.getItem('token')
-}
-
 async function request(
   method: string,
   path: string,
@@ -15,16 +11,16 @@ async function request(
 
   const res = await fetch(url.toString(), {
     method,
+    credentials: 'include',
     headers: {
       'Content-Type': 'application/json',
-      Authorization: `Bearer ${getToken()}`,
       ...options.headers,
     },
     ...options,
   })
 
   if (res.status === 401) {
-    localStorage.removeItem('token')
+    localStorage.removeItem('loggedIn')
     window.location.href = '/login'
     throw new Error('Sesión expirada')
   }
@@ -58,7 +54,7 @@ export async function uploadFile(
   const timer = setTimeout(() => controller.abort(), timeout)
   const res = await fetch(BASE + path, {
     method: 'POST',
-    headers: { Authorization: `Bearer ${getToken()}` },
+    credentials: 'include',
     body: form,
     signal: controller.signal,
   })

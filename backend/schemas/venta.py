@@ -3,13 +3,14 @@ from decimal import Decimal
 from datetime import date, datetime
 from typing import Optional
 import uuid
+from backend.models.enums import FormaPago
 
 
 class VentaBase(BaseModel):
     producto_id: uuid.UUID
     cliente_id: Optional[uuid.UUID] = None
     precio_final: Decimal
-    forma_pago: str = "efectivo"
+    forma_pago: FormaPago = FormaPago.efectivo
     monto_permuta: Decimal = Decimal("0")
     notas: Optional[str] = None
 
@@ -20,7 +21,7 @@ class VentaCreate(VentaBase):
 
 class VentaUpdate(BaseModel):
     precio_final: Optional[Decimal] = None
-    forma_pago: Optional[str] = None
+    forma_pago: Optional[FormaPago] = None
     monto_permuta: Optional[Decimal] = None
     notas: Optional[str] = None
 
