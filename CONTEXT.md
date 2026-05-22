@@ -1,56 +1,53 @@
 # TechSur — Full Codebase Context
 
-This document is intended for AI agents performing refactoring, feature work, or code review. It describes every layer of the application in enough detail to make accurate, non-breaking changes.
+This document is for AI agents doing refactoring, feature work, or code review. It reflects the current state of the codebase. Read this before touching anything.
 
 ---
 
 ## 1. What the App Does
 
-TechSur is an **internal management system for a tech-device resale business**. It manages:
+TechSur is an **internal management system for a second-hand electronics resale business** (primarily smartphones). Single-user (one admin account, no registration flow).
 
-- **Inventario** — product stock (phones, tablets, etc.)
-- **Compras** — purchases from suppliers
-- **Ventas** — sales to clients, including trade-in amounts
-- **Permutas** — trade-in devices received from clients
+Modules:
+- **Inventario** — product stock with quantity tracking per SKU
+- **Compras** — purchases from suppliers or private sellers
+- **Ventas** — sales to clients with multi-unit and ARS/USD support
+- **Permutas** — trade-in devices received as partial payment
 - **Clientes** — client records
 - **Proveedores** — supplier records
-- **Catálogo** — public-facing product listing (no auth required)
-- **Dashboard** — KPIs: monthly revenue, sales count, gross margin, stock levels
-
-The app is single-user (one admin account). There is no user registration flow.
+- **Dashboard** — KPIs: monthly revenue (split ARS/USD), gross margin, stock levels
+- **Historial** — full audit log of every write operation with one-click restore
+- **Asistente IA** — Claude-powered chat for natural-language queries and operations
+- **Catálogo** — public-facing product page (no auth)
 
 ---
 
 ## 2. Tech Stack
 
 ### Backend
-| Concern | Library / Tool |
+| Concern | Tool |
 |---|---|
 | Framework | FastAPI |
-| ORM | SQLAlchemy 2.x (async, `mapped_column` style) |
+| ORM | SQLAlchemy 2.x async (`mapped_column` style) |
 | DB driver | asyncpg |
-| Database | PostgreSQL hosted on Supabase |
-| Auth | JWT (python-jose) + bcrypt, delivered via httpOnly cookie |
-| File storage | Supabase Storage (bucket: `product-photos`) |
+| Database | PostgreSQL on Supabase |
+| Auth | JWT via httpOnly cookie (python-jose + bcrypt) |
+| AI | Anthropic Python SDK (async, streaming) |
+| File storage | Supabase Storage |
 | Config | pydantic-settings (reads `.env`) |
-| Rate limiting | slowapi (limits by remote IP) |
-| HTTP client | httpx (async, used for Supabase Storage uploads) |
+| Rate limiting | slowapi |
 | Runtime | uvicorn |
 
 ### Frontend
-| Concern | Library / Tool |
+| Concern | Tool |
 |---|---|
 | Framework | React 18 |
-| Build tool | Vite 6 |
-| Language | TypeScript (JSX/TSX, no strict tsconfig — no `tsc` installed) |
+| Build | Vite 6 |
+| Language | TypeScript (no strict tsconfig, no `tsc` installed) |
 | Routing | React Router v7 (`createBrowserRouter`) |
-| Styling | Tailwind CSS v4 (via `@tailwindcss/vite` plugin) |
-| UI primitives | Radix UI (Dialog, DropdownMenu, Select, Tabs, Tooltip, etc.) |
-| Forms | react-hook-form (used in some pages) |
-| Charts | recharts (Dashboard) |
+| Styling | Tailwind CSS v4 (via `@tailwindcss/vite`) |
 | Toasts | sonner |
 | Icons | lucide-react |
-| Date utils | date-fns |
 | Package manager | pnpm |
 
 ---
@@ -59,34 +56,34 @@ The app is single-user (one admin account). There is no user registration flow.
 
 ```
 techsur-app/
-├── .env                        # Local secrets — gitignored, never committed
-├── .env.example                # Safe template committed to repo
+├── .env                          # Local secrets — never commit
+├── .env.example
 ├── .gitignore
-├── requirements.txt            # Python dependencies
+├── requirements.txt
 ├── README.md
-├── CONTEXT.md                  # This file
+├── CONTEXT.md                    # This file
+├── AI_SCHEMA.md                  # AI assistant data model reference
 │
 ├── backend/
-│   ├── main.py                 # FastAPI app, CORS, rate limiter wiring
-│   ├── config.py               # Pydantic Settings class
-│   ├── database.py             # Async SQLAlchemy engine + session factory
-│   ├── auth.py                 # create_access_token, verify_token (cookie-based)
-│   ├── limiter.py              # slowapi Limiter instance
+│   ├── main.py                   # FastAPI app, CORS, router registration
+│   ├── config.py                 # Pydantic Settings
+│   ├── database.py               # Async engine + get_db() dependency
+│   ├── auth.py                   # JWT creation + verify_token dependency
+│   ├── audit.py                  # log_cambio() + snapshot() — audit log helpers
+│   ├── limiter.py                # slowapi Limiter instance
 │   │
 │   ├── models/
-│   │   ├── __init__.py
-│   │   ├── enums.py            # Python str enums for all constrained fields
 │   │   ├── usuario.py
-│   │   ├── producto.py         # Has selectin relationship to ProductoFoto
+│   │   ├── producto.py           # Has `cantidad` field; `estado` derived from it
 │   │   ├── producto_foto.py
 │   │   ├── cliente.py
 │   │   ├── proveedor.py
-│   │   ├── compra.py
-│   │   ├── venta.py
-│   │   └── permuta.py
+│   │   ├── compra.py             # Has `cantidad` field
+│   │   ├── venta.py              # Has `cantidad` field; precio_final = TOTAL
+│   │   ├── permuta.py
+│   │   └── historial.py          # historial_cambios table — audit log
 │   │
 │   ├── schemas/
-│   │   ├── auth.py             # Token response schema
 │   │   ├── producto.py
 │   │   ├── cliente.py
 │   │   ├── proveedor.py
@@ -94,195 +91,172 @@ techsur-app/
 │   │   ├── venta.py
 │   │   └── permuta.py
 │   │
-│   └── routers/
-│       ├── __init__.py
-│       ├── auth.py             # POST /auth/token, POST /auth/logout
-│       ├── producto.py         # CRUD + photo upload/delete
-│       ├── cliente.py
-│       ├── proveedor.py
-│       ├── compra.py
-│       ├── venta.py
-│       └── permuta.py
+│   ├── routers/
+│   │   ├── auth.py
+│   │   ├── producto.py           # All writes call log_cambio()
+│   │   ├── cliente.py            # All writes call log_cambio()
+│   │   ├── proveedor.py          # All writes call log_cambio()
+│   │   ├── compra.py             # All writes call log_cambio()
+│   │   ├── venta.py              # All writes call log_cambio()
+│   │   ├── permuta.py            # All writes call log_cambio()
+│   │   ├── ai.py                 # /ai/chat and /ai/chat/stream endpoints
+│   │   └── historial.py          # GET /historial/, POST /historial/{id}/restaurar
+│   │
+│   └── ai_tools.py               # Tool definitions + execute_tool() for AI agent
 │
 └── frontend/
+    ├── .env.local                # Local overrides — gitignored (e.g. VITE_API_URL for mobile)
     ├── package.json
-    ├── vercel.json             # SPA rewrite: /* → /index.html
-    ├── vite.config.ts (not present — Tailwind is wired via pnpm plugin)
-    └── src/
-        ├── main.tsx            # React root, RouterProvider
-        ├── styles/
-        │   ├── index.css
-        │   ├── tailwind.css
-        │   ├── fonts.css
-        │   └── theme.css
-        └── app/
-            ├── api.ts          # Typed fetch client + all TypeScript interfaces
-            ├── routes.tsx      # Router config + authLoader
-            ├── lib/
-            │   └── utils.ts    # formatCurrency, formatDate, exportCSV, cn()
-            ├── components/
-            │   ├── Layout.tsx  # Nav shell, logout handler
-            │   ├── Button.tsx
-            │   ├── Input.tsx
-            │   ├── Select.tsx
-            │   ├── Textarea.tsx
-            │   ├── Modal.tsx
-            │   ├── Carousel.tsx
-            │   ├── StatusBadge.tsx
-            │   ├── ErrorMessage.tsx
-            │   └── SuccessMessage.tsx
-            └── pages/
-                ├── Login.tsx
-                ├── Dashboard.tsx
-                ├── Inventario.tsx
-                ├── Clientes.tsx
-                ├── Ventas.tsx
-                ├── Compras.tsx
-                ├── Proveedores.tsx
-                ├── Permutas.tsx
-                └── Catalogo.tsx  # Public, no auth required
+    └── src/app/
+        ├── api.ts                # Typed fetch client + all TS interfaces
+        ├── routes.tsx            # Router config + authLoader
+        ├── lib/utils.ts          # formatCurrency, formatDate, exportCSV, cn()
+        ├── components/
+        │   ├── Layout.tsx        # Nav with Historial link, AI chat embedded
+        │   ├── AiChat.tsx        # Floating AI assistant (SSE streaming)
+        │   ├── Button.tsx
+        │   ├── Input.tsx         # text-base (16px) — no iOS zoom
+        │   ├── Select.tsx        # text-base (16px) — no iOS zoom
+        │   ├── Textarea.tsx      # text-base (16px) — no iOS zoom
+        │   ├── Modal.tsx
+        │   ├── StatusBadge.tsx
+        │   └── ...
+        └── pages/
+            ├── Login.tsx
+            ├── Dashboard.tsx     # ARS/USD split ingresos; margen uses cantidad
+            ├── Inventario.tsx    # Button→modal pattern; Otro for marca/storage
+            ├── Clientes.tsx
+            ├── Ventas.tsx        # Multi-unit; precio_final = total
+            ├── Compras.tsx
+            ├── Proveedores.tsx
+            ├── Permutas.tsx
+            ├── Historial.tsx     # Audit log viewer with restore
+            └── Catalogo.tsx      # Public, no auth
 ```
 
 ---
 
-## 4. Configuration (`backend/config.py`)
+## 4. Stock Model (CRITICAL — read before touching inventory/ventas)
 
-All config is read from `.env` via `pydantic-settings`. The `Settings` object is instantiated once as `settings` and imported wherever needed.
+```
+producto.cantidad   integer units in stock
+producto.estado     derived: cantidad > 0 → "disponible", cantidad = 0 → "vendido"
+```
+
+**Rules:**
+- `estado` is NEVER set manually by the user or AI. It is always computed from `cantidad`.
+- The only valid `estado` values are `"disponible"` and `"vendido"`. `"reservado"` is removed and must not appear.
+- Creating a venta: `producto.cantidad -= venta.cantidad`. If it hits 0, set `estado = "vendido"`.
+- Deleting a venta: `producto.cantidad += venta.cantidad`. If it goes above 0, set `estado = "disponible"`.
+- `precio_final` in ventas = **TOTAL** amount for the whole transaction (unit_price × quantity). To get unit price: `precio_final / cantidad`.
+- Capital inmovilizado = `SUM(precio_compra * cantidad)` for products where `cantidad > 0`.
+
+**Filtering for "in stock":**
+```python
+# Backend (correct)
+q.where(Producto.cantidad > 0)   # NOT Producto.estado == "disponible"
+# Frontend (correct)
+productos.filter(p => p.cantidad > 0)
+```
+
+---
+
+## 5. Audit Log (`backend/audit.py`, `backend/models/historial.py`)
+
+Every write operation logs a `historial_cambios` entry in the **same DB transaction** as the change.
 
 ```python
-class Settings(BaseSettings):
-    DATABASE_URL: str                                      # asyncpg format
-    SECRET_KEY: str                                        # JWT signing key (hex 64 chars)
-    ALGORITHM: str = "HS256"
-    ACCESS_TOKEN_EXPIRE_MINUTES: int = 60                  # 1 hour
-    BACKEND_URL: str = "http://localhost:8000"
-    ALLOWED_ORIGINS: list[str] = ["http://localhost:5173"] # JSON array in .env
-    COOKIE_SECURE: bool = False                            # True in production
-    SUPABASE_URL: str = ""
-    SUPABASE_KEY: str = ""
-    MAX_UPLOAD_MB: int = 10
+from backend.audit import log_cambio, snapshot
+
+# Pattern for UPDATE:
+antes = snapshot(record)          # capture before modifying
+setattr(record, field, value)
+await log_cambio(db, "productos", record.id, "UPDATE", antes=antes, despues=snapshot(record))
+await db.commit()
+
+# Pattern for DELETE:
+antes = snapshot(record)
+await db.delete(record)
+await log_cambio(db, "productos", record.id, "DELETE", antes=antes)
+await db.commit()
+
+# Pattern for CREATE:
+db.add(record)
+await db.flush()                  # populates record.id
+await log_cambio(db, "productos", record.id, "CREATE", despues=snapshot(record))
+await db.commit()
 ```
+
+`snapshot()` serializes an ORM object to a plain dict (handles Decimal, UUID, date, datetime).
+
+`fuente` values: `"manual"` (from REST routers), `"ai"` (from ai_tools.py), `"restaurar"` (from restore endpoint).
+
+**Restore endpoint** (`POST /historial/{id}/restaurar`):
+- UPDATE → re-applies `antes` fields to the current record
+- DELETE → re-creates the record from `antes` (handles type coercion via `_coerce()`)
+- CREATE → returns 400 (delete through normal UI)
+- Restoring a deleted venta also deducts `cantidad` from the linked product again.
 
 ---
 
-## 5. Database (`backend/database.py`)
+## 6. AI Assistant (`backend/routers/ai.py`, `backend/ai_tools.py`)
 
-- Uses `create_async_engine` + `async_sessionmaker`.
-- For non-localhost URLs, SSL is enabled using `ssl.create_default_context()` (full cert verification).
-- `statement_cache_size=0` is required for asyncpg with PgBouncer / Supabase connection pooling.
-- `get_db()` is a FastAPI dependency that yields an `AsyncSession`.
-- All models inherit from `Base = DeclarativeBase()`.
-- No Alembic migrations — schema is managed directly in Supabase.
+### Architecture
+The AI runs an agentic tool-use loop against the live database (direct SQLAlchemy calls, no internal HTTP). Tools are defined in `ai_tools.py` as `TOOLS: list[dict]` (Anthropic tool schema format) and dispatched via `execute_tool(name, inputs, db)`.
 
----
-
-## 6. Authentication (`backend/auth.py`, `backend/routers/auth.py`)
-
-### Flow
-1. Client POSTs `application/x-www-form-urlencoded` with `username` + `password` to `POST /auth/token`.
-2. Backend verifies password with `bcrypt.checkpw`.
-3. On success, a JWT is created and set as an `httpOnly` cookie named `token`.
-4. All subsequent requests send the cookie automatically (`credentials: 'include'` on the frontend).
-5. `verify_token(request: Request)` is a FastAPI dependency that reads `request.cookies.get("token")` and decodes the JWT.
-6. On logout, `POST /auth/logout` calls `response.delete_cookie("token")`.
-
-### Cookie attributes
-| Attribute | Dev | Prod |
-|---|---|---|
-| `httponly` | True | True |
-| `secure` | False | True |
-| `samesite` | `lax` | `none` |
-| `max_age` | `ACCESS_TOKEN_EXPIRE_MINUTES * 60` | same |
-
-### Rate limiting
-`POST /auth/token` is decorated with `@limiter.limit("5/minute")` (slowapi, keyed by remote IP). Exceeding the limit returns `429 Too Many Requests`.
-
-### JWT payload
-```json
-{ "sub": "<username>", "exp": <unix timestamp> }
+### Model routing
+```python
+MODEL_DISPATCH = "claude-haiku-4-5-20251001"   # tool-call turns (cheap)
+MODEL_DIRECT   = "claude-sonnet-4-6"            # first turn / direct answers
 ```
+Switches to Haiku after the first tool use. Switches back to Sonnet for the final answer turn.
+
+### Cost optimizations
+- **Prompt caching**: system prompt + last tool in TOOLS list marked `cache_control: ephemeral`. Saves ~80% on those tokens after the first call in a 5-min window.
+- **Sliding window**: history capped at 20 messages, always aligned to a user turn.
+- **Token limits**: 512 max_tokens for tool-dispatch turns, 4096 for answer turns.
+- **Result trimming**: `_trim_result()` strips `updated_at` from all tool results; strips `estado` additionally from producto results (derived field, saves tokens).
+- **Client singleton**: `_get_client()` creates the `AsyncAnthropic` client once per process (lazy, avoids rebuilding connection pool).
+
+### Streaming
+`POST /ai/chat/stream` returns SSE. Events:
+- `{"type": "tool_call", "tool": "<name>"}` — emitted before each tool execution
+- `{"type": "text", "text": "..."}` — streamed text chunks
+- `{"type": "history", "messages": [...]}` — full serialized history at the end
+- `[DONE]` — stream terminator
+
+The `history` event eliminates the need for a second `/ai/chat` call to sync state.
+
+### Key AI rules (from SYSTEM_PROMPT)
+- `precio_final` is total (not per unit)
+- `estado = "reservado"` does not exist — never use it
+- Never read or write the `usuarios` table
+- Never show `precio_compra` unless user explicitly asks for cost/margin data
+- All amounts are ARS unless `moneda = "USD"`
 
 ---
 
 ## 7. Data Models
 
-All primary keys are `UUID` generated client-side with `uuid.uuid4()`. All timestamps use `TIMESTAMP(timezone=True)`.
-
-### `usuarios`
-| Column | Type | Notes |
-|---|---|---|
-| id | UUID PK | |
-| username | String(60) | unique |
-| password_hash | String(255) | bcrypt hash |
-| created_at | TIMESTAMP | server default |
+All PKs are UUID generated with `uuid.uuid4()`. All timestamps use `TIMESTAMP(timezone=True)`.
 
 ### `productos`
 | Column | Type | Notes |
 |---|---|---|
 | id | UUID PK | |
 | nombre | String(120) | |
-| marca | String(60) | default "Apple" |
+| marca | String(60) | default "Apple"; can be any string |
 | modelo | String(80) | |
-| storage | String(20) | nullable |
+| storage | String(20) | nullable; can be any string |
 | color | String(40) | nullable |
-| condicion | String(20) | enum: nuevo/usado/reacondicionado |
+| condicion | String(20) | nuevo / usado / reacondicionado |
 | bateria_salud | SmallInteger | nullable, 0–100 |
-| precio_compra | Numeric(12,2) | |
-| precio_venta | Numeric(12,2) | |
-| estado | String(20) | enum: disponible/reservado/vendido |
+| **cantidad** | **Integer** | **units in stock — drives estado** |
+| precio_compra | Numeric(12,2) | per unit |
+| precio_venta | Numeric(12,2) | per unit |
+| estado | String(20) | disponible / vendido — derived from cantidad, never set manually |
 | notas | Text | nullable |
 | created_at / updated_at | TIMESTAMP | |
-
-Has a `selectin` relationship to `producto_fotos` (loaded automatically on every query).
-
-### `producto_fotos`
-| Column | Type | Notes |
-|---|---|---|
-| id | UUID PK | |
-| producto_id | UUID FK → productos(id) CASCADE | |
-| url | String(1000) | Supabase public URL |
-| orden | Integer | display order |
-| created_at | TIMESTAMP | |
-
-### `clientes`
-| Column | Type | Notes |
-|---|---|---|
-| id | UUID PK | |
-| nombre | String(80) | required |
-| apellido | String(80) | nullable |
-| dni | String(20) | nullable |
-| telefono | String(40) | nullable |
-| email | String(120) | nullable |
-| direccion | Text | nullable |
-| notas | Text | nullable |
-| created_at / updated_at | TIMESTAMP | |
-
-Cannot be deleted if they have associated ventas.
-
-### `proveedores`
-| Column | Type | Notes |
-|---|---|---|
-| id | UUID PK | |
-| nombre | String(100) | |
-| contacto | String(100) | nullable |
-| telefono | String(40) | nullable |
-| email | String(120) | nullable |
-| notas | Text | nullable |
-| created_at / updated_at | TIMESTAMP | |
-
-Cannot be deleted if they have associated compras.
-
-### `compras`
-| Column | Type | Notes |
-|---|---|---|
-| id | UUID PK | |
-| proveedor_id | UUID FK → proveedores SET NULL | nullable |
-| producto_id | UUID FK → productos RESTRICT | |
-| precio_unitario | Numeric(12,2) | |
-| fecha_compra | Date | server default today |
-| forma_pago | String(20) | enum: efectivo/transferencia/tarjeta |
-| notas | Text | nullable |
-| created_at | TIMESTAMP | |
 
 ### `ventas`
 | Column | Type | Notes |
@@ -290,222 +264,151 @@ Cannot be deleted if they have associated compras.
 | id | UUID PK | |
 | producto_id | UUID FK → productos RESTRICT | |
 | cliente_id | UUID FK → clientes SET NULL | nullable |
-| precio_final | Numeric(12,2) | |
-| forma_pago | String(20) | enum: efectivo/transferencia/tarjeta/mixto |
+| **cantidad** | **Integer** | **units sold in this transaction** |
+| precio_final | Numeric(12,2) | **TOTAL** amount (not per unit) |
+| moneda | String(3) | ARS or USD |
+| forma_pago | String(20) | efectivo / transferencia / tarjeta / mixto |
 | monto_permuta | Numeric(12,2) | default 0 |
 | notas | Text | nullable |
-| fecha_venta | Date | server default today |
+| fecha_venta | Date | |
 | created_at | TIMESTAMP | |
 
-Creating a venta sets `producto.estado = "vendido"` atomically in the same transaction.
-
-### `permutas`
+### `compras`
 | Column | Type | Notes |
 |---|---|---|
 | id | UUID PK | |
-| venta_id | UUID FK → ventas SET NULL | nullable |
-| cliente_id | UUID FK → clientes SET NULL | nullable |
-| marca | String(60) | |
-| modelo | String(80) | |
-| storage | String(20) | nullable |
-| color | String(40) | nullable |
-| condicion | String(20) | enum: bueno/regular/malo |
-| bateria_salud | SmallInteger | nullable |
-| valor_permuta | Numeric(12,2) | |
+| proveedor_id | UUID FK → proveedores SET NULL | nullable |
+| producto_id | UUID FK → productos RESTRICT | |
+| **cantidad** | **Integer** | **units purchased** |
+| precio_unitario | Numeric(12,2) | per unit |
+| fecha_compra | Date | |
+| forma_pago | String(20) | efectivo / transferencia / tarjeta |
 | notas | Text | nullable |
 | created_at | TIMESTAMP | |
 
-### Enums (`backend/models/enums.py`)
-All are `str, enum.Enum` so they serialize to/from plain strings.
+### `historial_cambios`
+| Column | Type | Notes |
+|---|---|---|
+| id | UUID PK | |
+| tabla | String(50) | e.g. "productos", "ventas" |
+| registro_id | String(36) | UUID of the affected record |
+| operacion | String(10) | CREATE / UPDATE / DELETE |
+| antes | JSONB | state before (null for CREATE) |
+| despues | JSONB | state after (null for DELETE) |
+| fuente | String(20) | manual / ai / restaurar |
+| resumen | String(200) | human-readable summary |
+| created_at | TIMESTAMP | |
 
-```python
-class CondicionProducto: nuevo | usado | reacondicionado
-class EstadoProducto:    disponible | reservado | vendido
-class FormaPago:         efectivo | transferencia | tarjeta | mixto
-class FormaPagoCompra:   efectivo | transferencia | tarjeta
-class CondicionPermuta:  bueno | regular | malo
-```
-
-These enums are used in **all Pydantic schemas**. They are NOT used in the SQLAlchemy models (which store plain strings).
+Other tables (`clientes`, `proveedores`, `permutas`, `producto_fotos`, `usuarios`) are unchanged from original schema.
 
 ---
 
 ## 8. API Endpoints
 
-All endpoints except `GET /`, `POST /auth/token`, `POST /auth/logout`, and `GET /productos/public` require a valid `token` cookie (`verify_token` dependency).
+Auth required on all endpoints except `GET /`, `POST /auth/token`, `POST /auth/logout`, `GET /productos/public`.
 
-### Auth
+### New since initial commit
 | Method | Path | Notes |
 |---|---|---|
-| POST | `/auth/token` | Login — sets httpOnly cookie. Rate limited 5/min. |
-| POST | `/auth/logout` | Clears the cookie. |
+| POST | `/ai/chat` | Non-streaming agentic loop |
+| POST | `/ai/chat/stream` | SSE streaming agentic loop |
+| GET | `/historial/` | Last 200 audit entries |
+| POST | `/historial/{id}/restaurar` | Restore an UPDATE or DELETE |
 
-### Productos
-| Method | Path | Notes |
-|---|---|---|
-| GET | `/productos/` | Query param: `?estado=` filter |
-| GET | `/productos/public` | No auth — returns `ProductoPublic` (no pricing) |
-| GET | `/productos/{id}` | |
-| POST | `/productos/` | |
-| PUT | `/productos/{id}` | |
-| DELETE | `/productos/{id}` | Blocked if `estado == "vendido"` |
-| POST | `/productos/{id}/foto` | Upload image. Validates magic bytes (JPEG/PNG/WebP). Enforces MAX_UPLOAD_MB. Stores in Supabase Storage. |
-| DELETE | `/productos/{id}/fotos/{foto_id}` | Removes DB record only — does NOT delete from Supabase Storage. |
-
-### Clientes
-| Method | Path | Notes |
-|---|---|---|
-| GET | `/clientes/` | Query param: `?busqueda=` — ilike on nombre, apellido, dni |
-| GET | `/clientes/{id}` | |
-| POST | `/clientes/` | |
-| PUT | `/clientes/{id}` | |
-| DELETE | `/clientes/{id}` | Blocked if client has ventas |
-
-### Proveedores
-| Method | Path | Notes |
-|---|---|---|
-| GET | `/proveedores/` | |
-| GET | `/proveedores/{id}` | |
-| POST | `/proveedores/` | |
-| PUT | `/proveedores/{id}` | |
-| DELETE | `/proveedores/{id}` | Blocked if proveedor has compras |
-
-### Compras
-| Method | Path | Notes |
-|---|---|---|
-| GET | `/compras/` | Query param: `?proveedor_id=` |
-| GET | `/compras/{id}` | |
-| POST | `/compras/` | |
-| DELETE | `/compras/{id}` | |
-
-### Ventas
-| Method | Path | Notes |
-|---|---|---|
-| GET | `/ventas/` | |
-| GET | `/ventas/labels` | Returns `[{id, label}]` — label is product name + client name. Used for select dropdowns. |
-| GET | `/ventas/{id}` | |
-| POST | `/ventas/` | Also sets `producto.estado = "vendido"` |
-| PUT | `/ventas/{id}` | Does NOT revert producto estado |
-
-### Permutas
-| Method | Path | Notes |
-|---|---|---|
-| GET | `/permutas/` | |
-| GET | `/permutas/{id}` | |
-| POST | `/permutas/` | |
-| DELETE | `/permutas/{id}` | |
+### Modified behavior
+| Endpoint | Change |
+|---|---|
+| `POST /ventas/` | Deducts `cantidad` from stock; sets `estado` based on `cantidad` |
+| `DELETE /ventas/{id}` | Restores `cantidad` to stock; sets `estado = "disponible"` if > 0 |
+| `GET /productos/public` | Filters `cantidad > 0` (not just `estado = "disponible"`) |
+| All write endpoints | Call `log_cambio()` before commit |
 
 ---
 
-## 9. Frontend Architecture
+## 9. Frontend
 
-### API Client (`frontend/src/app/api.ts`)
+### Input font sizes — iOS zoom prevention
+All focusable inputs must have `font-size >= 16px` or iOS Safari will auto-zoom on focus.
+- Shared components (`Input`, `Select`, `Textarea`) use `text-base` (16px) ✓
+- Raw inputs inline in pages use `text-[16px] md:text-sm` for mobile/desktop split
+- AiChat textarea: `text-[16px] md:text-sm`
+- Inventario search: `text-[16px] md:text-sm`
 
-Single typed fetch client. All requests go through `request()`.
+### AiChat (`components/AiChat.tsx`)
+- Does NOT auto-focus the textarea when opened (would trigger mobile keyboard)
+- Reads SSE `history` event to sync `apiMessages` without a second API call
+- Tool call pills shown above assistant messages
 
-- Base URL: `import.meta.env.VITE_API_URL ?? 'http://localhost:8000'`
-- All requests use `credentials: 'include'` so the `httpOnly` cookie is sent automatically.
-- No `Authorization` header — auth is entirely cookie-based.
-- On `401`: clears `localStorage.loggedIn` and redirects to `/login`.
-- On `204`: returns `null`.
-- `uploadFile()` uses `FormData` (multipart), no `Content-Type` header (browser sets it with boundary).
+### Inventario (`pages/Inventario.tsx`)
+- Shows only products where `cantidad > 0`
+- "Agregar Producto" button → Modal (not a tab)
+- Marca and Storage selects have "Otro" option → reveals free-text input
+- `marcaSelectValue()` / `storageSelectValue()` detect non-preset values and show "Otro" selected
 
-Exports typed interfaces for all entities: `Producto`, `ProductoFoto`, `Cliente`, `Proveedor`, `Compra`, `Venta`, `Permuta`, `VentaLabel`.
+### Dashboard (`pages/Dashboard.tsx`)
+- Ingresos del mes split by currency (ARS card always shown, USD card only when > 0)
+- Margen bruto = `SUM(precio_final - precio_compra * cantidad)` for ARS sales only
+- `disponibles` = `productos.filter(p => p.cantidad > 0).length` (not `estado === 'disponible'`)
 
-### Routing (`frontend/src/app/routes.tsx`)
-
-Uses `createBrowserRouter` from React Router v7.
-
-```
-/login          → Login (public)
-/catalogo       → Catalogo (public)
-/               → Layout (protected via authLoader)
-  /             → Dashboard
-  /inventario   → Inventario
-  /clientes     → Clientes
-  /ventas       → Ventas
-  /proveedores  → Proveedores
-  /compras      → Compras
-  /permutas     → Permutas
-```
-
-**Auth guard** is an `authLoader` function on the `/` route. It runs synchronously before any component renders. If `localStorage.getItem('loggedIn')` is falsy, it returns `redirect('/login')`. This is a UX guard only — the real security is the `httpOnly` cookie checked server-side on every API call.
-
-### State Management
-
-No global state library. Each page manages its own state with `useState` + `useEffect`. Data is fetched on component mount and mutated optimistically or by re-fetching after writes.
-
-### Page Overview
-
-| Page | Key Features |
-|---|---|
-| `Login` | Submits form-urlencoded to `/auth/token`, sets `loggedIn` flag in localStorage |
-| `Dashboard` | Fetches all ventas + productos, computes KPIs client-side (monthly revenue, margin, stock counts). Shows last 8 sales. |
-| `Inventario` | Tabbed UI: Lista / Agregar / Fotos. Card grid with carousel. Inline edit via Modal. CSV export via `exportCSV`. Photo upload via `uploadFile`. |
-| `Clientes` | Search/filter by nombre, apellido, DNI. CRUD via inline form + Modal. |
-| `Ventas` | Create/edit sales. Selects producto and cliente from API. Handles `monto_permuta`. |
-| `Compras` | CRUD for purchase records. Links proveedor + producto. |
-| `Proveedores` | Basic CRUD. |
-| `Permutas` | CRUD for trade-in records. Optional link to venta and cliente. |
-| `Catalogo` | Public page. Fetches `GET /productos/public`. No auth. Shows disponible products only. |
-
-### Shared Components
-
-| Component | Description |
-|---|---|
-| `Layout` | Sticky top nav with NavLinks + logout button. Calls `POST /auth/logout` then clears `loggedIn`. |
-| `Button` | Variants: `primary`, `secondary`, `danger`. Accepts `disabled`. |
-| `Input` | Labelled input with optional error state. |
-| `Select` | Labelled `<select>` wrapper. Accepts `options: {value, label}[]`. |
-| `Textarea` | Labelled textarea. |
-| `Modal` | Radix Dialog wrapper. Props: `isOpen`, `onClose`, `title`. |
-| `Carousel` | Image carousel for product photos. Props: `urls: string[]`, `height: number`. |
-| `StatusBadge` | Colored pill badge. Handles: `disponible`, `reservado`, `vendido`, `nuevo`, `usado`, `reacondicionado`, `bueno`, `regular`, `malo`, payment methods. |
-| `ErrorMessage` | Red alert box. |
-| `SuccessMessage` | Green alert box. |
+### Historial (`pages/Historial.tsx`)
+- Expandable rows showing field-level diff for UPDATE, full record for CREATE/DELETE
+- "Restaurar" button (UPDATE/DELETE only) → confirmation modal → `POST /historial/{id}/restaurar`
+- Badges: operacion (green/yellow/red), fuente (purple=ai, gray=manual, blue=restaurar)
 
 ---
 
 ## 10. Patterns and Conventions
 
 ### Backend
-- All router functions are `async`. DB access uses `await db.execute(...)`, `await db.get(...)`.
-- Pydantic schemas use `ConfigDict(from_attributes=True)` on response models to allow ORM → schema conversion.
-- `model_dump(exclude_unset=True)` is used on `Update` schemas so PATCH-style partial updates work via `PUT`.
-- Foreign key integrity errors (delete blocked by relations) are handled by checking counts before deletion, not by catching DB exceptions.
-- The `verify_token` dependency returns the username string (`str`) and is typed as `_: str = Depends(verify_token)` on most routes (result unused — only the cookie validation matters).
+- All router functions are `async`. Use `await db.flush()` before `log_cambio()` on CREATE to populate the ID without committing.
+- `model_dump(exclude_unset=True)` on Update schemas gives PATCH-like behavior via PUT.
+- `snapshot(orm_obj)` from `audit.py` serializes any ORM object to a JSON-safe dict.
+- The `verify_token` dependency is typed `_: str = Depends(verify_token)` — result unused, only validation matters.
 
 ### Frontend
-- All API calls use the `api.*` helpers or `uploadFile()` from `api.ts`.
-- Errors are surfaced via `toast.error(e.message)` (sonner).
-- Loading states use a local `loading` boolean with skeleton UIs.
-- Decimal values from the API arrive as strings (Pydantic serializes `Decimal` as string). `parseDecimal()` from `api.ts` converts them.
-- `exportCSV()` from `lib/utils.ts` handles CSV export client-side.
-- The brand color is `#2563EB` (Tailwind `blue-600`), used as a CSS literal throughout.
+- All API calls go through `api.get/post/put/patch/delete` from `api.ts`.
+- Decimal values from API arrive as strings; use `parseDecimal()` to convert.
+- Errors surfaced via `toast.error(e.message)` (sonner).
+- Brand color: `#2563EB` (Tailwind `blue-600`), used as a CSS literal.
+- No global state. Each page manages its own state with `useState` + `useEffect`.
 
 ---
 
-## 11. Business Rules Encoded in Code
+## 11. Business Rules
 
-1. A product in `estado = "vendido"` cannot be deleted.
-2. Creating a `Venta` sets the linked `Producto.estado` to `"vendido"` in the same DB commit.
-3. A `Cliente` with associated ventas cannot be deleted.
-4. A `Proveedor` with associated compras cannot be deleted.
-5. A `Venta` can only be created for a product with `estado = "disponible"`.
-6. Updating a venta does **not** revert the producto's estado (no rollback logic).
-7. Photo deletion removes only the DB record — the file in Supabase Storage is not deleted.
-8. Upload validation: only JPEG, PNG, and WebP are accepted (magic bytes check). Max size is `MAX_UPLOAD_MB` (default 10 MB).
+1. **Stock**: `estado` is always derived from `cantidad`. Never write `estado` directly (except when syncing after a `cantidad` change).
+2. **Venta create**: deduct `cantidad`, set `estado = "vendido"` if 0, else `"disponible"`.
+3. **Venta delete**: restore `cantidad`, set `estado = "disponible"` if > 0.
+4. **precio_final**: always the TOTAL for the transaction. Unit price = `precio_final / cantidad`.
+5. **Audit**: every CREATE/UPDATE/DELETE must call `log_cambio()` in the same transaction.
+6. **No reservado**: the `"reservado"` estado is removed. If you see it in the DB, treat it as stale.
+7. **AI restrictions**: never read/write `usuarios`; never show `precio_compra` unless user asks for cost data.
+8. **Delete guards**: producto blocked if `cantidad == 0`; cliente blocked if has ventas; proveedor blocked if has compras.
+9. **Cascade**: deleting a producto with linked ventas/compras raises IntegrityError (RESTRICT FK).
 
 ---
 
-## 12. Known Gaps / Refactoring Opportunities
+## 12. Running
 
-- **No Alembic migrations** — schema changes must be applied manually in Supabase.
-- **No soft delete** — records are hard-deleted.
-- **Deleting a foto doesn't delete the file from Supabase Storage** — orphaned files accumulate.
-- **Dashboard KPIs are computed client-side** from full ventas + productos lists — will become slow at scale.
-- **No pagination** — all list endpoints return every row. High-volume tables (ventas, compras) will become a problem.
-- **No tests** — pytest and pytest-asyncio are in requirements.txt but no test files exist.
-- **`as any` casts in frontend** — several places cast to `any` when passing enum values to `StatusBadge`.
-- **`venta.PUT` doesn't revert producto estado** — updating a venta's `producto_id` would leave the old product stuck as "vendido".
-- **Models use plain `str` for enum columns** — the SQLAlchemy models don't use `Enum` column types, so invalid values can be written directly via raw SQL.
+### Local dev
+```bash
+uvicorn backend.main:app --reload
+cd frontend && pnpm dev
+```
+
+### Mobile (local network)
+Backend: `uvicorn backend.main:app --host 0.0.0.0 --port 8000 --reload`
+Frontend: `pnpm dev --host` with `frontend/.env.local` containing `VITE_API_URL=http://<machine-ip>:8000`
+Add `http://<machine-ip>:5173` to `ALLOWED_ORIGINS` in `.env`.
+
+---
+
+## 13. Known Gaps
+
+- **No Alembic** — schema changes applied manually in Supabase SQL editor.
+- **No tests** — pytest/pytest-asyncio in requirements but no test files.
+- **No pagination** — all list endpoints return every row.
+- **Dashboard KPIs computed client-side** from full data sets (will slow down at scale).
+- **Photo deletion** removes only the DB record, not the file in Supabase Storage.
+- **`venta PUT` doesn't adjust stock** — updating `cantidad` on an existing venta doesn't reconcile `producto.cantidad`.
+- **No hard currency conversion** — margen bruto on Dashboard excludes USD sales (can't mix without exchange rate).

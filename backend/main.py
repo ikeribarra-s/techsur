@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
-from backend.routers import auth, producto, cliente, proveedor, compra, venta, permuta
+from backend.routers import auth, producto, cliente, proveedor, compra, venta, permuta, ai, historial
 from backend.config import settings
 from backend.limiter import limiter
 
@@ -25,6 +25,8 @@ app.include_router(proveedor.router)
 app.include_router(compra.router)
 app.include_router(venta.router)
 app.include_router(permuta.router)
+app.include_router(ai.router)
+app.include_router(historial.router)
 
 
 @app.get("/")

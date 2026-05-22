@@ -15,4 +15,4 @@ class ProductoFoto(Base):
     orden: Mapped[int] = mapped_column(Integer, default=0)
     created_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), server_default=func.now())
 
-    producto: Mapped["Producto"] = relationship("Producto", back_populates="fotos")
+    producto: Mapped["Producto"] = relationship("Producto")

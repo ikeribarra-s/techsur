@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from typing import List
+from backend.audit import log_cambio, snapshot
 from backend.database import get_db
 from backend.auth import verify_token
 from backend.models.venta import Venta
@@ -53,12 +54,21 @@ async def create_venta(
     producto = await db.get(Producto, str(data.producto_id))
     if not producto:
         raise HTTPException(status_code=404, detail="Producto no encontrado")
-    if producto.estado != "disponible":
-        raise HTTPException(status_code=409, detail="El producto no está disponible")
+    if producto.cantidad < data.cantidad:
+        raise HTTPException(
+            status_code=409,
+            detail=f"Stock insuficiente: hay {producto.cantidad} unidad(es) disponible(s)"
+        )
 
     venta = Venta(**data.model_dump())
     db.add(venta)
-    producto.estado = "vendido"
+    producto.cantidad -= data.cantidad
+    if producto.cantidad <= 0:
+        producto.estado = "vendido"
+    else:
+        producto.estado = "disponible"
+    await db.flush()
+    await log_cambio(db, "ventas", venta.id, "CREATE", despues=snapshot(venta))
     await db.commit()
     await db.refresh(venta)
     return venta
@@ -74,8 +84,26 @@ async def update_venta(
     v = await db.get(Venta, id)
     if not v:
         raise HTTPException(status_code=404, detail="Venta no encontrada")
+    antes = snapshot(v)
     for field, val in data.model_dump(exclude_unset=True).items():
         setattr(v, field, val)
+    await log_cambio(db, "ventas", v.id, "UPDATE", antes=antes, despues=snapshot(v))
     await db.commit()
     await db.refresh(v)
     return v
+
+
+@router.delete("/{id}", status_code=204)
+async def delete_venta(id: str, db: AsyncSession = Depends(get_db), _: str = Depends(verify_token)):
+    v = await db.get(Venta, id)
+    if not v:
+        raise HTTPException(status_code=404, detail="Venta no encontrada")
+    producto = await db.get(Producto, v.producto_id)
+    antes = snapshot(v)
+    await db.delete(v)
+    if producto:
+        producto.cantidad += v.cantidad
+        if producto.estado == "vendido" and producto.cantidad > 0:
+            producto.estado = "disponible"
+    await log_cambio(db, "ventas", v.id, "DELETE", antes=antes)
+    await db.commit()

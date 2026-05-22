@@ -15,7 +15,10 @@ def _async_url(url: str) -> str:
 def _connect_args(url: str) -> dict:
     args: dict = {"statement_cache_size": 0}
     if "localhost" not in url and "127.0.0.1" not in url:
-        args["ssl"] = _ssl.create_default_context()
+        ctx = _ssl.create_default_context()
+        ctx.check_hostname = False
+        ctx.verify_mode = _ssl.CERT_NONE
+        args["ssl"] = ctx
     return args
 
 

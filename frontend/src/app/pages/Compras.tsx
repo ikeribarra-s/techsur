@@ -22,6 +22,7 @@ export default function Compras() {
   const [form, setForm] = useState({
     proveedor_id: '',
     producto_id: '',
+    cantidad: '1',
     precio_unitario: '',
     fecha_compra: today,
     forma_pago: 'efectivo',
@@ -49,13 +50,14 @@ export default function Compras() {
       const c = await api.post('/compras/', {
         proveedor_id: form.proveedor_id || undefined,
         producto_id: form.producto_id,
+        cantidad: parseInt(form.cantidad) || 1,
         precio_unitario: parseFloat(form.precio_unitario),
         fecha_compra: form.fecha_compra,
         forma_pago: form.forma_pago,
         notas: form.notas || undefined,
       }) as Compra;
       setCompras((prev) => [c, ...prev]);
-      setForm({ proveedor_id: '', producto_id: '', precio_unitario: '', fecha_compra: today, forma_pago: 'efectivo', notas: '' });
+      setForm({ proveedor_id: '', producto_id: '', cantidad: '1', precio_unitario: '', fecha_compra: today, forma_pago: 'efectivo', notas: '' });
       setShowForm(false);
       toast.success('Compra registrada');
     } catch (e: any) {
@@ -86,7 +88,7 @@ export default function Compras() {
         <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-4">
           <p className="text-sm text-gray-500">Invertido total</p>
           <p className="text-2xl font-bold text-gray-900">
-            {formatCurrency(compras.reduce((s, c) => s + parseDecimal(c.precio_unitario), 0))}
+            {formatCurrency(compras.reduce((s, c) => s + parseDecimal(c.precio_unitario) * c.cantidad, 0))}
           </p>
         </div>
       </div>
@@ -103,7 +105,9 @@ export default function Compras() {
                 <tr className="text-left text-gray-500">
                   <th className="px-4 py-3 font-medium">Producto</th>
                   <th className="px-4 py-3 font-medium">Proveedor</th>
-                  <th className="px-4 py-3 font-medium">Precio</th>
+                  <th className="px-4 py-3 font-medium text-center">Cant.</th>
+                  <th className="px-4 py-3 font-medium">Precio unit.</th>
+                  <th className="px-4 py-3 font-medium">Total</th>
                   <th className="px-4 py-3 font-medium">Pago</th>
                   <th className="px-4 py-3 font-medium">Fecha</th>
                 </tr>
@@ -113,7 +117,9 @@ export default function Compras() {
                   <tr key={c.id} className="border-t border-gray-100 hover:bg-gray-50">
                     <td className="px-4 py-3 font-medium text-gray-900">{getProductoNombre(c.producto_id)}</td>
                     <td className="px-4 py-3 text-gray-600">{getProveedorNombre(c.proveedor_id)}</td>
-                    <td className="px-4 py-3 font-semibold text-gray-900">{formatCurrency(parseDecimal(c.precio_unitario))}</td>
+                    <td className="px-4 py-3 text-center text-gray-700">{c.cantidad}</td>
+                    <td className="px-4 py-3 text-gray-700">{formatCurrency(parseDecimal(c.precio_unitario))}</td>
+                    <td className="px-4 py-3 font-semibold text-gray-900">{formatCurrency(parseDecimal(c.precio_unitario) * c.cantidad)}</td>
                     <td className="px-4 py-3"><StatusBadge status={c.forma_pago as any} /></td>
                     <td className="px-4 py-3 text-gray-500">{formatDate(c.fecha_compra)}</td>
                   </tr>
@@ -145,8 +151,9 @@ export default function Compras() {
             value={form.proveedor_id}
             onChange={(e) => setForm({ ...form, proveedor_id: e.target.value })}
           />
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <Input label="Precio ($)" type="number" required value={form.precio_unitario} onChange={(e) => setForm({ ...form, precio_unitario: e.target.value })} />
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <Input label="Cantidad" type="number" min={1} required value={form.cantidad} onChange={(e) => setForm({ ...form, cantidad: e.target.value })} />
+            <Input label="Precio unitario ($)" type="number" required value={form.precio_unitario} onChange={(e) => setForm({ ...form, precio_unitario: e.target.value })} />
             <Input label="Fecha" type="date" required value={form.fecha_compra} onChange={(e) => setForm({ ...form, fecha_compra: e.target.value })} />
             <Select
               label="Forma de pago"

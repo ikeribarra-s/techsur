@@ -1,6 +1,7 @@
 import { NavLink, Outlet, useNavigate } from "react-router";
 import { LogOut } from "lucide-react";
 import { api } from "../api";
+import AiChat from "./AiChat";
 
 const navItems = [
   { path: '/', label: 'Inicio' },
@@ -10,6 +11,7 @@ const navItems = [
   { path: '/proveedores', label: 'Proveedores' },
   { path: '/compras', label: 'Compras' },
   { path: '/permutas', label: 'Permutas' },
+  { path: '/historial', label: 'Historial' },
 ];
 
 export default function Layout() {
@@ -56,6 +58,7 @@ export default function Layout() {
       <main className="p-4 md:p-6 lg:p-8">
         <Outlet />
       </main>
+      <AiChat />
     </div>
   );
 }

@@ -8,6 +8,7 @@ import Ventas from "./pages/Ventas";
 import Proveedores from "./pages/Proveedores";
 import Compras from "./pages/Compras";
 import Permutas from "./pages/Permutas";
+import Historial from "./pages/Historial";
 import Catalogo from "./pages/Catalogo";
 
 function authLoader() {
@@ -38,6 +39,7 @@ export const router = createBrowserRouter([
       { path: "proveedores", Component: Proveedores },
       { path: "compras", Component: Compras },
       { path: "permutas", Component: Permutas },
+      { path: "historial", Component: Historial },
     ],
   },
 ]);

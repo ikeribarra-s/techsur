@@ -19,6 +19,7 @@ export default function Login() {
       const form = new URLSearchParams({ username, password });
       const res = await fetch(`${BASE}/auth/token`, {
         method: 'POST',
+        credentials: 'include',
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
         body: form,
       });

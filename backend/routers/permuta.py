@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from typing import List
+from backend.audit import log_cambio, snapshot
 from backend.database import get_db
 from backend.auth import verify_token
 from backend.models.permuta import Permuta
@@ -32,6 +33,8 @@ async def create_permuta(
 ):
     p = Permuta(**data.model_dump())
     db.add(p)
+    await db.flush()
+    await log_cambio(db, "permutas", p.id, "CREATE", despues=snapshot(p))
     await db.commit()
     await db.refresh(p)
     return p
@@ -42,5 +45,7 @@ async def delete_permuta(id: str, db: AsyncSession = Depends(get_db), _: str = D
     p = await db.get(Permuta, id)
     if not p:
         raise HTTPException(status_code=404, detail="Permuta no encontrada")
+    antes = snapshot(p)
     await db.delete(p)
+    await log_cambio(db, "permutas", p.id, "DELETE", antes=antes)
     await db.commit()

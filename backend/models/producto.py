@@ -1,9 +1,9 @@
-from sqlalchemy import String, SmallInteger, Numeric, Text, TIMESTAMP, UUID
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy import String, SmallInteger, Integer, Numeric, Text, TIMESTAMP, UUID
+from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy.sql import func
 from datetime import datetime
 from decimal import Decimal
-from typing import Optional, List
+from typing import Optional
 import uuid
 from backend.database import Base
 
@@ -19,17 +19,10 @@ class Producto(Base):
     color: Mapped[Optional[str]] = mapped_column(String(40), nullable=True)
     condicion: Mapped[str] = mapped_column(String(20), default="usado")
     bateria_salud: Mapped[Optional[int]] = mapped_column(SmallInteger, nullable=True)
+    cantidad: Mapped[int] = mapped_column(Integer, default=1)
     precio_compra: Mapped[Decimal] = mapped_column(Numeric(12, 2))
     precio_venta: Mapped[Decimal] = mapped_column(Numeric(12, 2))
     estado: Mapped[str] = mapped_column(String(20), default="disponible")
     notas: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), server_default=func.now(), onupdate=func.now())
-
-    fotos: Mapped[List["ProductoFoto"]] = relationship(
-        "ProductoFoto",
-        back_populates="producto",
-        order_by="ProductoFoto.orden, ProductoFoto.id",
-        lazy="selectin",
-        cascade="all, delete-orphan",
-    )

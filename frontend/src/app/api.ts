@@ -71,12 +71,6 @@ export const parseDecimal = (v: string | null | undefined): number =>
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
-export interface ProductoFoto {
-  id: string
-  url: string
-  orden: number
-}
-
 export interface Producto {
   id: string
   nombre: string
@@ -86,11 +80,11 @@ export interface Producto {
   color: string | null
   condicion: 'nuevo' | 'usado' | 'reacondicionado'
   bateria_salud: number | null
+  cantidad: number
   precio_compra: string
   precio_venta: string
   estado: 'disponible' | 'reservado' | 'vendido'
   notas: string | null
-  fotos: ProductoFoto[]
   created_at: string
   updated_at: string
 }
@@ -119,6 +113,7 @@ export interface Compra {
   id: string
   proveedor_id: string | null
   producto_id: string
+  cantidad: number
   precio_unitario: string
   fecha_compra: string
   forma_pago: 'efectivo' | 'transferencia' | 'tarjeta'
@@ -130,7 +125,9 @@ export interface Venta {
   id: string
   producto_id: string
   cliente_id: string | null
+  cantidad: number
   precio_final: string
+  moneda: 'ARS' | 'USD'
   forma_pago: 'efectivo' | 'transferencia' | 'tarjeta' | 'mixto'
   monto_permuta: string
   notas: string | null
@@ -156,4 +153,16 @@ export interface Permuta {
 export interface VentaLabel {
   id: string
   label: string
+}
+
+export interface HistorialCambio {
+  id: string
+  tabla: string
+  registro_id: string
+  operacion: 'CREATE' | 'UPDATE' | 'DELETE'
+  antes: Record<string, unknown> | null
+  despues: Record<string, unknown> | null
+  fuente: string
+  resumen: string
+  created_at: string
 }

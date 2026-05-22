@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
 from typing import List
+from backend.audit import log_cambio, snapshot
 from backend.database import get_db
 from backend.auth import verify_token
 from backend.models.proveedor import Proveedor
@@ -33,6 +34,8 @@ async def create_proveedor(
 ):
     p = Proveedor(**data.model_dump())
     db.add(p)
+    await db.flush()
+    await log_cambio(db, "proveedores", p.id, "CREATE", despues=snapshot(p))
     await db.commit()
     await db.refresh(p)
     return p
@@ -48,8 +51,10 @@ async def update_proveedor(
     p = await db.get(Proveedor, id)
     if not p:
         raise HTTPException(status_code=404, detail="Proveedor no encontrado")
+    antes = snapshot(p)
     for field, val in data.model_dump(exclude_unset=True).items():
         setattr(p, field, val)
+    await log_cambio(db, "proveedores", p.id, "UPDATE", antes=antes, despues=snapshot(p))
     await db.commit()
     await db.refresh(p)
     return p
@@ -63,5 +68,7 @@ async def delete_proveedor(id: str, db: AsyncSession = Depends(get_db), _: str =
     compras_count = await db.scalar(select(func.count()).where(Compra.proveedor_id == p.id))
     if compras_count:
         raise HTTPException(status_code=409, detail="No se puede eliminar un proveedor con compras registradas")
+    antes = snapshot(p)
     await db.delete(p)
+    await log_cambio(db, "proveedores", p.id, "DELETE", antes=antes)
     await db.commit()

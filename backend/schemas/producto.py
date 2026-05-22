@@ -6,13 +6,6 @@ import uuid
 from backend.models.enums import CondicionProducto, EstadoProducto
 
 
-class ProductoFotoSchema(BaseModel):
-    id: uuid.UUID
-    url: str
-    orden: int
-    model_config = ConfigDict(from_attributes=True)
-
-
 class ProductoBase(BaseModel):
     nombre: str
     marca: str = "Apple"
@@ -21,6 +14,7 @@ class ProductoBase(BaseModel):
     color: Optional[str] = None
     condicion: CondicionProducto = CondicionProducto.usado
     bateria_salud: Optional[int] = None
+    cantidad: int = 1
     precio_compra: Decimal
     precio_venta: Decimal
     estado: EstadoProducto = EstadoProducto.disponible
@@ -39,6 +33,7 @@ class ProductoUpdate(BaseModel):
     color: Optional[str] = None
     condicion: Optional[CondicionProducto] = None
     bateria_salud: Optional[int] = None
+    cantidad: Optional[int] = None
     precio_compra: Optional[Decimal] = None
     precio_venta: Optional[Decimal] = None
     estado: Optional[EstadoProducto] = None
@@ -47,7 +42,6 @@ class ProductoUpdate(BaseModel):
 
 class ProductoResponse(ProductoBase):
     id: uuid.UUID
-    fotos: list[ProductoFotoSchema] = []
     created_at: datetime
     updated_at: datetime
     model_config = ConfigDict(from_attributes=True)
@@ -62,7 +56,7 @@ class ProductoPublic(BaseModel):
     color: Optional[str] = None
     condicion: str
     bateria_salud: Optional[int] = None
+    cantidad: int
     precio_venta: Decimal
     notas: Optional[str] = None
-    fotos: list[ProductoFotoSchema] = []
     model_config = ConfigDict(from_attributes=True)

@@ -1,123 +1,165 @@
-# TechSur — Sistema de Gestión Interna
+# TechSur
 
-Internal management system for a tech resale business. Handles inventory, purchases, sales, trade-ins (permutas), clients, and suppliers.
+Internal management system for a second-hand electronics business. Manages inventory, purchases, sales, trade-ins, clients, and suppliers — with an AI assistant for natural-language queries and bulk operations.
 
-## Stack
+---
 
-| Layer | Technology |
-|---|---|
-| Backend | FastAPI, SQLAlchemy (async), asyncpg |
-| Database | PostgreSQL via Supabase |
-| Auth | JWT (httpOnly cookie) + bcrypt |
-| File storage | Supabase Storage |
-| Frontend | React 18, Vite, Tailwind CSS v4, React Router v7 |
+## Features
 
-## Project Structure
+- **Inventario** — stock management with quantity tracking, custom brand/storage, filters, CSV export
+- **Ventas** — sales with multi-unit quantity, ARS/USD currency, trade-in support
+- **Compras** — purchase records linked to suppliers and products
+- **Permutas** — trade-in devices received from clients
+- **Clientes / Proveedores** — client and supplier CRM
+- **Dashboard** — KPIs: monthly revenue (ARS + USD split), gross margin, stock levels
+- **Historial** — full audit log of every change with one-click restore for updates and deletes
+- **Asistente IA** — Claude-powered chat for querying data, creating records, and bulk operations
+- **Catálogo** — public product listing page (no auth required)
 
-```
-techsur-app/
-├── backend/
-│   ├── models/        # SQLAlchemy ORM models + enums
-│   ├── routers/       # FastAPI route handlers
-│   ├── schemas/       # Pydantic request/response schemas
-│   ├── auth.py        # JWT creation and cookie verification
-│   ├── config.py      # Pydantic settings (reads from .env)
-│   ├── database.py    # Async engine + session factory
-│   ├── limiter.py     # slowapi rate limiter
-│   └── main.py        # App entry point, middleware
-├── frontend/
-│   └── src/app/
-│       ├── components/ # Shared UI components
-│       ├── pages/      # Route-level page components
-│       ├── api.ts      # Typed fetch client
-│       └── routes.tsx  # React Router config + auth loader
-├── .env.example        # Environment variable template
-└── requirements.txt
-```
+---
+
+## Tech Stack
+
+### Backend
+- **FastAPI** + **SQLAlchemy 2.x** (async) + **asyncpg**
+- **PostgreSQL** on Supabase
+- **JWT** auth via httpOnly cookie
+- **Anthropic Claude API** (Sonnet + Haiku routing, prompt caching, SSE streaming)
+- **slowapi** rate limiting
+
+### Frontend
+- **React 18** + **TypeScript** + **Vite 6**
+- **React Router v7**
+- **Tailwind CSS v4**
+- **sonner** (toasts) + **lucide-react** (icons)
+
+---
 
 ## Setup
 
 ### Prerequisites
-
 - Python 3.11+
-- Node.js 18+ and pnpm
-- A Supabase project (PostgreSQL + Storage bucket named `product-photos`)
+- Node.js 18+ with pnpm
+- A Supabase project
 
-### Backend
+### 1. Clone and install
 
 ```bash
+git clone https://github.com/ikeribarra-s/techsur
+cd techsur-app
+
+# Backend
 python -m venv venv
 venv\Scripts\activate        # Windows
-# source venv/bin/activate   # macOS/Linux
-
 pip install -r requirements.txt
+
+# Frontend
+cd frontend && pnpm install && cd ..
 ```
 
-Copy `.env.example` to `.env` and fill in your values:
+### 2. Environment variables
 
-```bash
-cp .env.example .env
+Create `.env` in the project root:
+
+```env
+DATABASE_URL=postgresql+asyncpg://...
+SECRET_KEY=<64-char hex string>
+ALLOWED_ORIGINS=["http://localhost:5173"]
+ANTHROPIC_API_KEY=sk-ant-...
+SUPABASE_URL=https://xxx.supabase.co
+SUPABASE_KEY=<service role key>
+COOKIE_SECURE=false
 ```
 
-Generate a secure `SECRET_KEY`:
+### 3. Database migrations
 
-```bash
-python -c "import secrets; print(secrets.token_hex(32))"
+Run in the Supabase SQL editor:
+
+```sql
+-- Quantity-based stock tracking
+ALTER TABLE productos ADD COLUMN IF NOT EXISTS cantidad INTEGER NOT NULL DEFAULT 1;
+ALTER TABLE ventas    ADD COLUMN IF NOT EXISTS cantidad INTEGER NOT NULL DEFAULT 1;
+ALTER TABLE compras   ADD COLUMN IF NOT EXISTS cantidad INTEGER NOT NULL DEFAULT 1;
+
+-- Normalize estado
+UPDATE productos SET estado = 'disponible' WHERE cantidad > 0 AND estado != 'disponible';
+UPDATE productos SET estado = 'vendido'    WHERE cantidad = 0 AND estado != 'vendido';
+
+-- Audit log table
+CREATE TABLE IF NOT EXISTS historial_cambios (
+    id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    tabla       VARCHAR(50)  NOT NULL,
+    registro_id VARCHAR(36)  NOT NULL,
+    operacion   VARCHAR(10)  NOT NULL,
+    antes       JSONB,
+    despues     JSONB,
+    fuente      VARCHAR(20)  NOT NULL DEFAULT 'manual',
+    resumen     VARCHAR(200),
+    created_at  TIMESTAMPTZ  NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_historial_created_at     ON historial_cambios(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_historial_tabla_registro ON historial_cambios(tabla, registro_id);
 ```
 
-Run the API:
+---
+
+## Running locally
 
 ```bash
+# Backend (from project root, venv active)
 uvicorn backend.main:app --reload
+
+# Frontend (separate terminal)
+cd frontend && pnpm dev
 ```
 
-The API will be available at `http://localhost:8000`. Interactive docs at `/docs`.
+Open `http://localhost:5173`.
 
-### Frontend
+---
 
+## Running on mobile (local network)
+
+Find your machine's IP:
+```powershell
+ipconfig | findstr "IPv4"
+# e.g. 192.168.0.2
+```
+
+Create `frontend/.env.local`:
+```env
+VITE_API_URL=http://192.168.0.2:8000
+```
+
+Add the network origin to `.env`:
+```env
+ALLOWED_ORIGINS=["http://localhost:5173","http://192.168.0.2:5173"]
+```
+
+Start with network binding:
 ```bash
-cd frontend
-pnpm install
-pnpm dev
+uvicorn backend.main:app --host 0.0.0.0 --port 8000 --reload
+cd frontend && pnpm dev --host
 ```
 
-The app will be available at `http://localhost:5173`.
+Open `http://192.168.0.2:5173` on your phone (same WiFi).
 
-Set `VITE_API_URL` in `frontend/.env.local` if your backend runs on a different URL:
+---
 
-```
-VITE_API_URL=http://localhost:8000
-```
+## Stock model
 
-## Environment Variables
+- Each `producto` has a `cantidad` (integer units in stock)
+- `estado` is derived: `cantidad > 0` → `disponible`, `cantidad = 0` → `vendido`
+- Creating a venta deducts `cantidad`; deleting restores it
+- `precio_final` on ventas is the **total** (unit price × quantity), not per-unit
 
-See `.env.example` for the full list. Key variables:
+---
 
-| Variable | Description |
-|---|---|
-| `DATABASE_URL` | PostgreSQL connection string (asyncpg format) |
-| `SECRET_KEY` | JWT signing key — generate with `secrets.token_hex(32)` |
-| `ALLOWED_ORIGINS` | JSON array of allowed frontend origins, e.g. `["https://yourapp.vercel.app"]` |
-| `COOKIE_SECURE` | Set `true` in production (requires HTTPS) |
-| `SUPABASE_URL` | Your Supabase project URL |
-| `SUPABASE_KEY` | Supabase service role key |
-| `ACCESS_TOKEN_EXPIRE_MINUTES` | JWT lifetime in minutes (default: 60) |
-| `MAX_UPLOAD_MB` | Max photo upload size in MB (default: 10) |
+## AI Assistant
 
-## Authentication
+The floating chat button opens the AI assistant powered by Claude. It can:
+- Query any data in natural language
+- Create, update, and delete records
+- Run bulk operations ("cargá 5 iPhone 14 usados a $300.000 cada uno")
+- Calculate metrics (capital inmovilizado, margen bruto, ganancia del mes)
 
-Sessions use `httpOnly` cookies (not localStorage). The JWT is never accessible from JavaScript. On login the backend sets the cookie; on logout it is cleared via `POST /auth/logout`.
-
-The login endpoint is rate-limited to **5 requests per minute per IP**.
-
-## Deployment
-
-### Frontend (Vercel)
-
-The `frontend/vercel.json` already includes the SPA rewrite rule. Set `VITE_API_URL` as an environment variable in the Vercel dashboard.
-
-### Backend
-
-1. Set `COOKIE_SECURE=true` and update `ALLOWED_ORIGINS` to your Vercel frontend URL.
-2. Ensure HTTPS is enforced at your reverse proxy — HTTP requests must redirect to HTTPS for `Secure` + `SameSite=None` cookies to work cross-origin.
-3. Rotate `SECRET_KEY`, `SUPABASE_KEY`, and the database password before going live.
+Cost optimizations: prompt caching, Haiku routing for tool-dispatch turns, sliding history window.

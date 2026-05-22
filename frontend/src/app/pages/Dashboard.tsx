@@ -31,19 +31,30 @@ export default function Dashboard() {
   const ventasMes = ventas.filter((v) => v.fecha_venta.startsWith(currentYM));
   const ventasPrevMes = ventas.filter((v) => v.fecha_venta.startsWith(prevYM));
 
-  const ingresosMes = ventasMes.reduce((s, v) => s + parseDecimal(v.precio_final), 0);
-  const ingresosPrev = ventasPrevMes.reduce((s, v) => s + parseDecimal(v.precio_final), 0);
-  const ingresosDelta = ingresosPrev > 0
-    ? ((ingresosMes - ingresosPrev) / ingresosPrev) * 100
+  // Ingresos split by currency
+  const ingresosARS = ventasMes
+    .filter((v) => v.moneda === 'ARS')
+    .reduce((s, v) => s + parseDecimal(v.precio_final), 0);
+  const ingresosUSD = ventasMes
+    .filter((v) => v.moneda === 'USD')
+    .reduce((s, v) => s + parseDecimal(v.precio_final), 0);
+
+  const ingresosPrevARS = ventasPrevMes
+    .filter((v) => v.moneda === 'ARS')
+    .reduce((s, v) => s + parseDecimal(v.precio_final), 0);
+  const deltaARS = ingresosPrevARS > 0
+    ? ((ingresosARS - ingresosPrevARS) / ingresosPrevARS) * 100
     : null;
 
-  const margenMes = ventasMes.reduce((sum, v) => {
-    const prod = productos.find((p) => p.id === v.producto_id);
-    return sum + (parseDecimal(v.precio_final) - parseDecimal(prod?.precio_compra));
-  }, 0);
+  // Margen bruto: precio_final (total) - precio_compra * cantidad vendida, ARS only
+  const margenMes = ventasMes
+    .filter((v) => v.moneda === 'ARS')
+    .reduce((sum, v) => {
+      const prod = productos.find((p) => p.id === v.producto_id);
+      return sum + (parseDecimal(v.precio_final) - parseDecimal(prod?.precio_compra) * v.cantidad);
+    }, 0);
 
-  const disponibles = productos.filter((p) => p.estado === 'disponible').length;
-  const reservados = productos.filter((p) => p.estado === 'reservado').length;
+  const disponibles = productos.filter((p) => p.cantidad > 0).length;
 
   const recentVentas = [...ventas]
     .sort((a, b) => new Date(b.fecha_venta).getTime() - new Date(a.fecha_venta).getTime())
@@ -70,14 +81,26 @@ export default function Dashboard() {
       <h1 className="text-3xl font-bold text-gray-900">Dashboard</h1>
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-6">
-          <p className="text-sm text-gray-500 mb-1">Ingresos del mes</p>
-          <p className="text-2xl font-bold text-gray-900">{formatCurrency(ingresosMes)}</p>
-          {ingresosDelta !== null && (
-            <p className={`text-sm mt-1 ${ingresosDelta >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-              {ingresosDelta >= 0 ? '↑' : '↓'} {Math.abs(ingresosDelta).toFixed(0)}% vs mes anterior
-            </p>
-          )}
+        {/* Ingresos del mes — split ARS / USD */}
+        <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-6 col-span-2 md:col-span-1">
+          <p className="text-sm text-gray-500 mb-2">Ingresos del mes</p>
+          <div className="space-y-1">
+            <div>
+              <p className="text-xs text-gray-400 leading-none">ARS</p>
+              <p className="text-xl font-bold text-gray-900">{formatCurrency(ingresosARS)}</p>
+              {deltaARS !== null && (
+                <p className={`text-xs mt-0.5 ${deltaARS >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                  {deltaARS >= 0 ? '↑' : '↓'} {Math.abs(deltaARS).toFixed(0)}% vs mes anterior
+                </p>
+              )}
+            </div>
+            {ingresosUSD > 0 && (
+              <div className="pt-1 border-t border-gray-100">
+                <p className="text-xs text-gray-400 leading-none">USD</p>
+                <p className="text-xl font-bold text-green-700">U$D {ingresosUSD.toLocaleString('es-AR', { minimumFractionDigits: 0 })}</p>
+              </div>
+            )}
+          </div>
         </div>
 
         <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-6">
@@ -93,14 +116,13 @@ export default function Dashboard() {
           <p className={`text-2xl font-bold ${margenMes >= 0 ? 'text-gray-900' : 'text-red-600'}`}>
             {formatCurrency(margenMes)}
           </p>
+          <p className="text-xs text-gray-400 mt-1">Solo ventas en ARS</p>
         </div>
 
         <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-6">
           <p className="text-sm text-gray-500 mb-1">Stock disponible</p>
           <p className="text-2xl font-bold text-green-600">{disponibles}</p>
-          {reservados > 0 && (
-            <p className="text-sm mt-1 text-amber-600">{reservados} reservado{reservados > 1 ? 's' : ''}</p>
-          )}
+          <p className="text-xs text-gray-400 mt-1">productos con stock</p>
         </div>
       </div>
 
@@ -125,7 +147,12 @@ export default function Dashboard() {
                       <td className="py-3 font-medium text-gray-900">
                         {prod ? prod.nombre : `Producto #${venta.producto_id.slice(0, 8)}`}
                       </td>
-                      <td className="py-3 text-gray-700">{formatCurrency(parseDecimal(venta.precio_final))}</td>
+                      <td className="py-3 text-gray-700">
+                        {venta.moneda === 'USD'
+                          ? `U$D ${parseDecimal(venta.precio_final).toLocaleString('es-AR')}`
+                          : formatCurrency(parseDecimal(venta.precio_final))
+                        }
+                      </td>
                       <td className="py-3">
                         <StatusBadge status={venta.forma_pago as any} />
                       </td>
@@ -143,7 +170,7 @@ export default function Dashboard() {
 
       <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
         {(['nuevo', 'usado', 'reacondicionado'] as const).map((cond) => {
-          const count = productos.filter((p) => p.condicion === cond && p.estado === 'disponible').length;
+          const count = productos.filter((p) => p.condicion === cond && p.cantidad > 0).length;
           return (
             <div key={cond} className="bg-white rounded-lg border border-gray-200 shadow-sm p-4 flex items-center gap-3">
               <StatusBadge status={cond} />

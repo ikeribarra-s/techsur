@@ -9,6 +9,7 @@ from backend.models.enums import FormaPagoCompra
 class CompraBase(BaseModel):
     proveedor_id: Optional[uuid.UUID] = None
     producto_id: uuid.UUID
+    cantidad: int = 1
     precio_unitario: Decimal
     fecha_compra: date
     forma_pago: FormaPagoCompra = FormaPagoCompra.efectivo

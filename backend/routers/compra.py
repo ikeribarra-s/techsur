@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from typing import List, Optional
+from backend.audit import log_cambio, snapshot
 from backend.database import get_db
 from backend.auth import verify_token
 from backend.models.compra import Compra
@@ -43,6 +44,8 @@ async def create_compra(
         raise HTTPException(status_code=404, detail="Producto no encontrado")
     c = Compra(**data.model_dump())
     db.add(c)
+    await db.flush()
+    await log_cambio(db, "compras", c.id, "CREATE", despues=snapshot(c))
     await db.commit()
     await db.refresh(c)
     return c
@@ -53,5 +56,7 @@ async def delete_compra(id: str, db: AsyncSession = Depends(get_db), _: str = De
     c = await db.get(Compra, id)
     if not c:
         raise HTTPException(status_code=404, detail="Compra no encontrada")
+    antes = snapshot(c)
     await db.delete(c)
+    await log_cambio(db, "compras", c.id, "DELETE", antes=antes)
     await db.commit()

@@ -1,4 +1,4 @@
-from sqlalchemy import Numeric, Text, Date, TIMESTAMP, UUID, ForeignKey, String
+from sqlalchemy import Integer, Numeric, Text, Date, TIMESTAMP, UUID, ForeignKey, String
 from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy.sql import func
 from datetime import date, datetime
@@ -18,7 +18,9 @@ class Venta(Base):
     cliente_id: Mapped[Optional[uuid.UUID]] = mapped_column(
         UUID(as_uuid=True), ForeignKey("clientes.id", ondelete="SET NULL"), nullable=True
     )
+    cantidad: Mapped[int] = mapped_column(Integer, default=1)
     precio_final: Mapped[Decimal] = mapped_column(Numeric(12, 2))
+    moneda: Mapped[str] = mapped_column(String(3), default="ARS")
     forma_pago: Mapped[str] = mapped_column(String(20), default="efectivo")
     monto_permuta: Mapped[Decimal] = mapped_column(Numeric(12, 2), default=0)
     notas: Mapped[Optional[str]] = mapped_column(Text, nullable=True)

@@ -30,3 +30,8 @@ class CondicionPermuta(str, enum.Enum):
     bueno = "bueno"
     regular = "regular"
     malo = "malo"
+
+
+class Moneda(str, enum.Enum):
+    ARS = "ARS"
+    USD = "USD"
