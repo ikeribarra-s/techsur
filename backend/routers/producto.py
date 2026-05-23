@@ -49,7 +49,9 @@ async def create_producto(
     db: AsyncSession = Depends(get_db),
     _: str = Depends(verify_token),
 ):
-    p = Producto(**data.model_dump())
+    data_dict = data.model_dump()
+    data_dict["estado"] = "disponible" if data_dict["cantidad"] > 0 else "vendido"
+    p = Producto(**data_dict)
     db.add(p)
     await db.flush()
     await log_cambio(db, "productos", p.id, "CREATE", despues=snapshot(p))
@@ -72,10 +74,7 @@ async def update_producto(
     for field, val in data.model_dump(exclude_unset=True).items():
         setattr(p, field, val)
     if "cantidad" in data.model_dump(exclude_unset=True):
-        if p.cantidad <= 0 and p.estado == "disponible":
-            p.estado = "vendido"
-        elif p.cantidad > 0 and p.estado == "vendido":
-            p.estado = "disponible"
+        p.estado = "disponible" if p.cantidad > 0 else "vendido"
     await log_cambio(db, "productos", p.id, "UPDATE", antes=antes, despues=snapshot(p))
     await db.commit()
     await db.refresh(p)

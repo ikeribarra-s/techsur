@@ -4,7 +4,7 @@ import { toast } from "sonner";
 import Input from "../components/Input";
 import Button from "../components/Button";
 
-const BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:8000';
+const BASE = import.meta.env.VITE_API_URL ?? '';
 
 export default function Login() {
   const navigate = useNavigate();

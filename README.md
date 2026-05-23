@@ -39,7 +39,7 @@ Internal management system for a second-hand electronics business. Manages inven
 
 ### Prerequisites
 - Python 3.11+
-- Node.js 18+ with pnpm
+- Node.js 18+ with pnpm (`npm install -g pnpm`)
 - A Supabase project
 
 ### 1. Clone and install
@@ -59,17 +59,19 @@ cd frontend && pnpm install && cd ..
 
 ### 2. Environment variables
 
-Create `.env` in the project root:
+Create `.env` in the project root (copy from `.env.example`):
 
 ```env
 DATABASE_URL=postgresql+asyncpg://...
-SECRET_KEY=<64-char hex string>
+SECRET_KEY=<run: python -c "import secrets; print(secrets.token_hex(32))">
 ALLOWED_ORIGINS=["http://localhost:5173"]
 ANTHROPIC_API_KEY=sk-ant-...
 SUPABASE_URL=https://xxx.supabase.co
 SUPABASE_KEY=<service role key>
 COOKIE_SECURE=false
 ```
+
+> **`COOKIE_SECURE`** must be `false` for local HTTP dev. Set to `true` only in production (HTTPS).
 
 ### 3. Database migrations
 
@@ -115,6 +117,8 @@ cd frontend && pnpm dev
 
 Open `http://localhost:5173`.
 
+> **Do not set `VITE_API_URL`** for local dev — the Vite proxy handles routing to the backend automatically. Only set it for mobile/network access.
+
 ---
 
 ## Running on mobile (local network)
@@ -148,9 +152,10 @@ Open `http://192.168.0.2:5173` on your phone (same WiFi).
 ## Stock model
 
 - Each `producto` has a `cantidad` (integer units in stock)
-- `estado` is derived: `cantidad > 0` → `disponible`, `cantidad = 0` → `vendido`
+- `estado` is always derived: `cantidad > 0` → `disponible`, `cantidad = 0` → `vendido`
 - Creating a venta deducts `cantidad`; deleting restores it
 - `precio_final` on ventas is the **total** (unit price × quantity), not per-unit
+- `estado` is never accepted as user input — it is always computed server-side
 
 ---
 
@@ -162,4 +167,16 @@ The floating chat button opens the AI assistant powered by Claude. It can:
 - Run bulk operations ("cargá 5 iPhone 14 usados a $300.000 cada uno")
 - Calculate metrics (capital inmovilizado, margen bruto, ganancia del mes)
 
-Cost optimizations: prompt caching, Haiku routing for tool-dispatch turns, sliding history window.
+Cost optimizations: prompt caching, Haiku routing for tool-dispatch turns, sliding history window, 20 req/min rate limit.
+
+---
+
+## Dev proxy
+
+The Vite dev server proxies all API routes to `http://localhost:8000` so cookies work correctly across ports:
+
+```
+browser → localhost:5173 (Vite) → localhost:8000 (FastAPI)
+```
+
+This is configured in `frontend/vite.config.ts`. No additional setup needed for local dev.

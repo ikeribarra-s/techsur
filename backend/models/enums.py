@@ -9,7 +9,6 @@ class CondicionProducto(str, enum.Enum):
 
 class EstadoProducto(str, enum.Enum):
     disponible = "disponible"
-    reservado = "reservado"
     vendido = "vendido"
 
 

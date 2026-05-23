@@ -11,4 +11,17 @@ export default defineConfig({
     },
   },
   assetsInclude: ['**/*.svg', '**/*.csv'],
+  server: {
+    proxy: {
+      '/auth': 'http://localhost:8000',
+      '/productos': 'http://localhost:8000',
+      '/ventas': 'http://localhost:8000',
+      '/clientes': 'http://localhost:8000',
+      '/proveedores': 'http://localhost:8000',
+      '/compras': 'http://localhost:8000',
+      '/permutas': 'http://localhost:8000',
+      '/historial': 'http://localhost:8000',
+      '/ai': 'http://localhost:8000',
+    },
+  },
 })

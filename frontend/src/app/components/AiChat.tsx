@@ -3,7 +3,7 @@ import { Bot, X, Send, Trash2, ChevronDown } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { toast } from 'sonner';
 
-const BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:8000';
+const BASE = import.meta.env.VITE_API_URL ?? '';
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 

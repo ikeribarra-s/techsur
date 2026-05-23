@@ -3,7 +3,7 @@ from decimal import Decimal
 from datetime import datetime
 from typing import Optional
 import uuid
-from backend.models.enums import CondicionProducto, EstadoProducto
+from backend.models.enums import CondicionProducto
 
 
 class ProductoBase(BaseModel):
@@ -17,7 +17,6 @@ class ProductoBase(BaseModel):
     cantidad: int = 1
     precio_compra: Decimal
     precio_venta: Decimal
-    estado: EstadoProducto = EstadoProducto.disponible
     notas: Optional[str] = None
 
 
@@ -36,7 +35,6 @@ class ProductoUpdate(BaseModel):
     cantidad: Optional[int] = None
     precio_compra: Optional[Decimal] = None
     precio_venta: Optional[Decimal] = None
-    estado: Optional[EstadoProducto] = None
     notas: Optional[str] = None
 
 

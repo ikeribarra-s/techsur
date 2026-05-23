@@ -1,7 +1,7 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 from typing import Any
 import anthropic
 import json
@@ -10,6 +10,7 @@ from backend.ai_tools import TOOLS, execute_tool
 from backend.auth import verify_token
 from backend.config import settings
 from backend.database import get_db
+from backend.limiter import limiter
 
 router = APIRouter(prefix="/ai", tags=["AI"])
 
@@ -83,6 +84,13 @@ class Message(BaseModel):
 
 class ChatRequest(BaseModel):
     messages: list[Message]
+
+    @field_validator("messages")
+    @classmethod
+    def validate_messages(cls, v: list) -> list:
+        if len(v) > 100:
+            raise ValueError("Historial demasiado largo (máx 100 mensajes)")
+        return v
 
 
 def _trim_history(messages: list[dict]) -> list[dict]:
@@ -192,7 +200,9 @@ def _serialize_history(history: list[dict]) -> list[dict]:
 
 
 @router.post("/chat")
+@limiter.limit("20/minute")
 async def chat(
+    request: Request,
     req: ChatRequest,
     db: AsyncSession = Depends(get_db),
     _: str = Depends(verify_token),
@@ -205,7 +215,9 @@ async def chat(
 
 
 @router.post("/chat/stream")
+@limiter.limit("20/minute")
 async def chat_stream(
+    request: Request,
     req: ChatRequest,
     db: AsyncSession = Depends(get_db),
     _: str = Depends(verify_token),

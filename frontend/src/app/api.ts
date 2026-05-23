@@ -1,4 +1,4 @@
-const BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:8000'
+const BASE = import.meta.env.VITE_API_URL ?? ''
 
 async function request(
   method: string,
@@ -6,7 +6,7 @@ async function request(
   options: RequestInit = {},
   params?: Record<string, string>
 ) {
-  const url = new URL(BASE + path)
+  const url = new URL(BASE + path, window.location.origin)
   if (params) Object.entries(params).forEach(([k, v]) => url.searchParams.set(k, v))
 
   const res = await fetch(url.toString(), {
